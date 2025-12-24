@@ -1,0 +1,10 @@
+gradio==5.5.0
+openai==1.85.0
+openai-agents==0.0.17
+pypdf==6.1.0
+python-dotenv==1.2.1
+requests==2.32.5
+huggingface-hub==0.32.4
+sendgrid==6.12.3
+pydantic==2.11.5
+nest-asyncio==1.6.0
