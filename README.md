@@ -4,19 +4,21 @@ An AI-powered research assistant built with Gradio and OpenAI Agents that perfor
 
 ## Features
 
-- **Multi-Agent Research Pipeline**: Orchestrates specialized AI agents for planning, searching, writing, and email delivery
+- **Multi-Agent Research Pipeline**: Orchestrates specialized AI agents for clarification, planning, searching, writing, and email delivery
+- **Query Clarification** (optional): Generates 3 clarifying questions to refine and focus research queries before starting
 - **Intelligent Search Planning**: Automatically generates a strategic search plan (5 searches) based on your research query
 - **Parallel Web Search**: Performs multiple web searches concurrently for faster results
 - **Comprehensive Report Generation**: Creates detailed, well-structured reports (5-10 pages, 1000+ words) in markdown format
 - **Optional Email Delivery**: Optionally sends formatted HTML reports via SendGrid to user-provided email addresses
 - **Real-time Progress Updates**: Streams status updates as the research progresses
-- **OpenAI Tracing**: Provides trace links for debugging and monitoring agent behavior
+- **Unified OpenAI Tracing**: All agent interactions (including clarification) are traced under a single trace ID for easier log management
 
 ## How It Works
 
-The Research Helper uses a four-stage agent pipeline:
+The Research Helper uses a multi-stage agent pipeline with an optional clarification step:
 
-1. **Planning Agent**: Analyzes your query and creates a strategic search plan with 5 targeted search terms and their reasoning
+0. **Clarifier Agent** (optional): Generates 3 clarifying questions to better understand and refine your research query. You can choose to answer these questions or skip directly to research.
+1. **Planning Agent**: Analyzes your (refined) query and creates a strategic search plan with 5 targeted search terms and their reasoning
 2. **Search Agent**: Performs web searches in parallel, summarizing results concisely (2-3 paragraphs, <300 words each)
 3. **Writer Agent**: Synthesizes all search results into a comprehensive, well-structured markdown report with:
    - Detailed analysis (5-10 pages, 1000+ words)
@@ -24,7 +26,7 @@ The Research Helper uses a four-stage agent pipeline:
    - Follow-up research questions
 4. **Email Agent** (optional): Formats the report as HTML and sends it via SendGrid to the user-provided email address
 
-All agents use GPT-4o-mini and are orchestrated by the `ResearchManager` class, which handles the async workflow and progress streaming.
+All agents use GPT-4o-mini and are orchestrated by the `ResearchManager` class, which handles the async workflow and progress streaming. When clarification is used, all agent interactions (including clarification) are traced under a single trace ID for unified log management.
 
 ## Setup
 
@@ -84,10 +86,12 @@ The app will be available at `http://127.0.0.1:7860`
 ## Usage
 
 1. Enter your research query in the text box (e.g., "Latest developments in quantum computing")
-2. (Optional) Check "Send report via email" if you want to receive the report via email
+2. Choose how to proceed:
+   - **Option A - Get Clarifying Questions** (recommended): Click "Get Clarifying Questions" to receive 3 questions that help refine your query. Answer them (optional) to improve research quality, then click "Run Research"
+   - **Option B - Skip Clarification**: Click "Run Research" directly to start research with your original query
+3. (Optional) Check "Send report via email" if you want to receive the report via email
    - If checked, you must provide your email address in the field that appears
-   - The "Run" button will be disabled until you provide an email address when the checkbox is checked
-3. Click "Run" or press Enter
+   - The "Run Research" button will be disabled until you provide a valid email address when the checkbox is checked
 4. Watch the progress updates as the system:
    - Plans searches
    - Performs web searches
@@ -95,6 +99,14 @@ The app will be available at `http://127.0.0.1:7860`
    - (If email requested) Sends the email to your provided address
 5. View the final report in the interface
 6. (If email was requested) Check your email inbox for the formatted HTML report
+
+### Query Clarification
+
+- **Optional but recommended**: The clarification step helps refine your research query for better results
+- Click "Get Clarifying Questions" to generate 3 targeted questions about your research topic
+- Answering the questions is optional - you can skip them and still run research
+- Your answers are incorporated into the refined query to improve search planning and report quality
+- All clarification interactions are traced under the same trace ID as the main research for unified log management
 
 ### Email Delivery
 
@@ -114,6 +126,7 @@ research-helper/
 ├── research_agents/
 │   ├── __init__.py            # Package initialization
 │   ├── manager.py             # ResearchManager orchestrates the pipeline
+│   ├── clarifier.py           # Clarifier agent (generates clarifying questions)
 │   ├── planner.py             # Planning agent (creates search strategy)
 │   ├── search.py              # Search agent (performs web searches)
 │   ├── writer.py              # Writer agent (synthesizes reports)
@@ -122,6 +135,13 @@ research-helper/
 ```
 
 ## Agent Details
+
+### Clarifier Agent
+- **Model**: GPT-4o-mini
+- **Output**: `ClarifyingQuestions` with exactly 3 `ClarifyingQuestion` objects
+- **Purpose**: Generates 3 targeted clarifying questions to better understand and refine research queries
+- **Behavior**: Optional step - users can choose to get questions or skip directly to research
+- **Tracing**: When used, clarification is traced under the same trace ID as the main research pipeline
 
 ### Planner Agent
 - **Model**: GPT-4o-mini
@@ -160,6 +180,8 @@ research-helper/
 
 You can customize the research behavior by modifying:
 
+- **Number of clarifying questions**: Modify the `ClarifyingQuestions` model in `research_agents/clarifier.py` (currently fixed at 3)
+- **Clarification instructions**: Adjust the agent instructions in `research_agents/clarifier.py`
 - **Number of searches**: Change `HOW_MANY_SEARCHES` in `research_agents/planner.py` (default: 5)
 - **Report length**: Modify instructions in `research_agents/writer.py`
 - **Search summary length**: Adjust instructions in `research_agents/search.py`
@@ -169,9 +191,12 @@ You can customize the research behavior by modifying:
 
 - The system performs searches in parallel for efficiency
 - Failed searches are gracefully handled (return `None` and continue)
-- All agent interactions are traced via OpenAI's tracing system
+- All agent interactions are traced via OpenAI's tracing system under a unified trace ID
+- When clarification is used, the clarifier agent's trace is nested within the main Research trace for easier log management
 - Reports are generated in markdown format and converted to HTML for email
+- Query clarification is optional - users can skip it and run research directly with their original query
+- Clarification answers are incorporated into the refined query to improve search planning and report quality
 - Email delivery is optional - users can view reports in the interface without providing an email
 - When email is requested, the user must provide their email address
-- The "Run" button is automatically disabled if email is requested but no email address is provided
+- The "Run Research" button is automatically disabled if email is requested but no valid email address is provided
 
