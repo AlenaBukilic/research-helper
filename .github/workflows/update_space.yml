@@ -30,17 +30,12 @@ jobs:
           HF_USERNAME=$(echo $HF_SPACE | cut -d'/' -f1)
           git remote add hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE || git remote set-url hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE
           
-          # Remove images directory from index (doesn't delete from working tree)
-          git rm -r --cached images/ 2>/dev/null || true
-          
-          # Commit the removal if there were changes
-          if ! git diff --cached --quiet; then
-            git commit -m "Remove images directory for HF Space deployment" || true
+          # Remove images from history (only if it exists in history)
+          if git log --all --full-history -- images/ > /dev/null 2>&1; then
+            git filter-branch --force --index-filter 'git rm -rf --cached --ignore-unmatch images/' --prune-empty --tag-name-filter cat -- --all
+            git reflog expire --expire=now --all
+            git gc --prune=now --aggressive
           fi
           
           # Push to Hugging Face
           git push --force hf main
-          
-          # Restore images directory in index (for future runs)
-          git reset HEAD~1 2>/dev/null || true
-          git checkout HEAD -- images/ 2>/dev/null || true
