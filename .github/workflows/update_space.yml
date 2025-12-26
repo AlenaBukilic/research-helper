@@ -1,41 +1,26 @@
-name: Sync to Hugging Face hub
+name: Sync to Hugging Face Hub
 
 on:
   push:
     branches: [main]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: true
+          # This is the only "LFS" line you need in the YAML
+          lfs: true 
 
-      - name: Configure Git
-        run: |
-          git config --global user.email "action@github.com"
-          git config --global user.name "GitHub Action"
-
-      - name: Push to hub
+      - name: Push to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.hf_token }}
           HF_SPACE: ${{ secrets.hf_space }}
+          HF_NAME: ${{ secrets.hf_name }}
         run: |
-          # Extract username from HF_SPACE (format: username/space-name)
-          HF_USERNAME=$(echo $HF_SPACE | cut -d'/' -f1)
-          git remote add hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE || git remote set-url hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE
-          
-          # Remove images from history (only if it exists in history)
-          if git log --all --full-history -- images/ > /dev/null 2>&1; then
-            git filter-branch --force --index-filter 'git rm -rf --cached --ignore-unmatch images/' --prune-empty --tag-name-filter cat -- --all
-            git reflog expire --expire=now --all
-            git gc --prune=now --aggressive
-          fi
-          
-          # Push to Hugging Face
+          git remote add hf https://$HF_NAME:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE
           git push --force hf main

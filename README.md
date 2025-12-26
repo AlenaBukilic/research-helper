@@ -1,6 +1,12 @@
+---
+title: research-helper
+app_file: app.py
+sdk: gradio
+sdk_version: 5.5.0
+---
 # Research Helper
 
-![Research Interface](images/screenshot.png)
+![Research Interface](./images/screenshot.png)
 
 An AI-powered research assistant built with Gradio and OpenAI Agents that performs deep research on any topic. The system uses an autonomous multi-agent architecture where a research manager agent orchestrates specialized agents to plan searches, gather information, synthesize comprehensive reports, evaluate quality, and deliver them via email.
 
@@ -132,6 +138,8 @@ research-helper/
 ├── requirements.txt            # Python dependencies
 ├── .env                        # Environment variables (not in git)
 ├── env.example                 # Example environment variables
+├── images/
+│   └── screenshot.png
 ├── research_agents/
 │   ├── __init__.py            # Package initialization
 │   ├── research_manager.py   # Autonomous research manager agent
