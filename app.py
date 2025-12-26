@@ -1,7 +1,9 @@
 import gradio as gr
 import re
 from dotenv import load_dotenv
-from research_agents.manager import ResearchManager
+from agents import Runner, trace, gen_trace_id
+from research_agents.clarifier import clarifier_agent, ClarifyingQuestions
+from research_agents.research_manager import research_manager
 
 load_dotenv(override=True)
 
@@ -14,7 +16,16 @@ def is_valid_email(email: str) -> bool:
     return bool(re.match(pattern, email.strip()))
 
 
-from agents import gen_trace_id
+def refine_query(original_query: str, answers: list[str] | None) -> str:
+    """Refine the query by incorporating clarification answers"""
+    if not answers or len(answers) == 0:
+        return original_query
+    
+    answers_text = "\n".join([f"- {answer}" for answer in answers if answer and answer.strip()])
+    if answers_text:
+        return f"{original_query}\n\nAdditional context from clarification:\n{answers_text}"
+    return original_query
+
 
 async def get_questions(query: str, state):
     """Get clarifying questions for the query"""
@@ -23,24 +34,84 @@ async def get_questions(query: str, state):
         return
     
     trace_id = gen_trace_id()
-    manager = ResearchManager()
     try:
-        questions_data = await manager.get_clarifying_questions(query, trace_id=trace_id)
-        questions_markdown = f"## Clarifying Questions\n\n"
-        for i, q in enumerate(questions_data.questions, 1):
-            questions_markdown += f"{i}. {q.question}\n\n"
-        questions_markdown += "Please answer these questions to help refine your research query."
-        yield questions_markdown, trace_id
+        with trace("Clarification", trace_id=trace_id):
+            result = await Runner.run(
+                clarifier_agent,
+                f"Research query: {query}",
+            )
+            questions_data = result.final_output_as(ClarifyingQuestions)
+            questions_markdown = f"## Clarifying Questions\n\n"
+            for i, q in enumerate(questions_data.questions, 1):
+                questions_markdown += f"{i}. {q.question}\n\n"
+            questions_markdown += "Please answer these questions to help refine your research query."
+            yield questions_markdown, trace_id
     except Exception as e:
         yield f"Error generating questions: {str(e)}", state
 
 
 async def run(query: str, send_email: bool, recipient_email: str, answer1: str, answer2: str, answer3: str, state):
-    """Run research with optional clarification answers"""
+    """Run autonomous research with optional clarification answers"""
+    if not query or not query.strip():
+        yield "Please enter a research query."
+        return
+    
+    trace_id = state if state else gen_trace_id()
+    
     answers = [answer1, answer2, answer3] if (answer1 or answer2 or answer3) else None
-    trace_id = state if state else None
-    async for chunk in ResearchManager().run(query, send_email, recipient_email if recipient_email else None, answers, trace_id=trace_id):
-        yield chunk
+    refined_query = refine_query(query, answers)
+    
+    with trace("Research trace", trace_id=trace_id):
+        print(f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}")
+        print(f"Starting research... This may take a few minutes.")
+        yield f"Starting research... This may take a few minutes."
+        
+        input_message = f"Research query: {refined_query}\n\nPlease conduct thorough research on this topic. Plan searches, perform them, write a report, evaluate it, and iterate if needed until you have a high-quality, complete report."
+        
+        if send_email:
+            if not recipient_email or not recipient_email.strip():
+                yield "Error: Email address is required when 'Send report via email' is checked."
+                return
+            if not is_valid_email(recipient_email):
+                yield "Error: Please provide a valid email address."
+                return
+            input_message += f"\n\nIMPORTANT: After completing the research and ensuring the report is high quality, hand off to the Email agent to send the final report to {recipient_email}. Include the recipient email in your handoff message."
+        
+        try:
+            result = await Runner.run(
+                research_manager,
+                input_message,
+            )
+            
+            final_output = str(result.final_output)
+            
+            if "✅ Email sent successfully" in final_output:
+                parts = final_output.split("✅ Email sent successfully")
+                if len(parts) > 1:
+                    report_part = parts[1].strip()
+                    lines = report_part.split("\n")
+                    if lines and ("to" in lines[0].lower() or "@" in lines[0]):
+                        final_output = "\n".join(lines[1:]).strip()
+                    else:
+                        final_output = report_part
+            else:
+                final_output = final_output.strip()
+            
+            if final_output.startswith("```"):
+                lines = final_output.split("\n")
+                if lines[0].startswith("```"):
+                    final_output = "\n".join(lines[1:])
+                if final_output.endswith("```"):
+                    final_output = final_output[:-3].strip()
+            
+            if not final_output or len(final_output) < 50:
+                yield "Error: Report not found in output. Please check the trace link for details."
+                return
+            
+            yield final_output
+            
+        except Exception as e:
+            yield f"Error during research: {str(e)}"
 
 
 def update_button_state(send_email: bool, recipient_email: str):
