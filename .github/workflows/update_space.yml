@@ -16,6 +16,6 @@ jobs:
         uses: backendcloud/hugging-push@v0.2.3
         with:
           hf_token: ${{ secrets.hf_token }}
-          huggingface_repo: 'research-helper'
+          huggingface_repo: ${{ secrets.hf_space }}
           repo_type: 'space'
           space_sdk: 'gradio'
