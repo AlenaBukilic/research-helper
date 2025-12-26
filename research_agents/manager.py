@@ -8,9 +8,10 @@ import asyncio
 
 class ResearchManager:
 
-    async def run(self, query: str, send_email: bool = False, recipient_email: str | None = None, clarification_answers: list[str] | None = None):
+    async def run(self, query: str, send_email: bool = False, recipient_email: str | None = None, clarification_answers: list[str] | None = None, trace_id: str | None = None):
         """ Run the deep research process, yielding the status updates and the final report"""
-        trace_id = gen_trace_id()
+        if trace_id is None:
+            trace_id = gen_trace_id()
         with trace("Research trace", trace_id=trace_id):
             print(f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}")
             yield f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}"
@@ -36,13 +37,20 @@ class ResearchManager:
                 yield "Report complete"
             yield report.markdown_report
     
-    async def get_clarifying_questions(self, query: str) -> ClarifyingQuestions:
-        """Generate clarifying questions for the research query"""
+    async def get_clarifying_questions(self, query: str, trace_id: str | None = None) -> ClarifyingQuestions:
+        """Generate clarifying questions for the research query within a trace context"""
         print("Generating clarifying questions...")
-        result = await Runner.run(
-            clarifier_agent,
-            f"Research query: {query}",
-        )
+        if trace_id:
+            with trace("Clarification", trace_id=trace_id):
+                result = await Runner.run(
+                    clarifier_agent,
+                    f"Research query: {query}",
+                )
+        else:
+            result = await Runner.run(
+                clarifier_agent,
+                f"Research query: {query}",
+            )
         return result.final_output_as(ClarifyingQuestions)
     
     def refine_query(self, original_query: str, answers: list[str] | None) -> str:
