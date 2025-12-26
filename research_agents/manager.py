@@ -3,22 +3,28 @@ from .search import search_agent
 from .planner import planner_agent, WebSearchItem, WebSearchPlan
 from .writer import writer_agent, ReportData
 from .email import email_agent
+from .clarifier import clarifier_agent, ClarifyingQuestions
 import asyncio
 
 class ResearchManager:
 
-    async def run(self, query: str, send_email: bool = False, recipient_email: str | None = None):
+    async def run(self, query: str, send_email: bool = False, recipient_email: str | None = None, clarification_answers: list[str] | None = None, trace_id: str | None = None):
         """ Run the deep research process, yielding the status updates and the final report"""
-        trace_id = gen_trace_id()
+        if trace_id is None:
+            trace_id = gen_trace_id()
         with trace("Research trace", trace_id=trace_id):
             print(f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}")
             yield f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}"
+            
+            # Refine query with clarification answers if provided
+            refined_query = self.refine_query(query, clarification_answers)
+            
             print("Starting research...")
-            search_plan = await self.plan_searches(query)
+            search_plan = await self.plan_searches(refined_query)
             yield "Searches planned, starting to search..."     
             search_results = await self.perform_searches(search_plan)
             yield "Searches complete, writing report..."
-            report = await self.write_report(query, search_results)
+            report = await self.write_report(refined_query, search_results)
             if send_email:
                 if not recipient_email or not recipient_email.strip():
                     yield "Error: Email address is required when 'Send report via email' is checked."
@@ -30,6 +36,33 @@ class ResearchManager:
             else:
                 yield "Report complete"
             yield report.markdown_report
+    
+    async def get_clarifying_questions(self, query: str, trace_id: str | None = None) -> ClarifyingQuestions:
+        """Generate clarifying questions for the research query within a trace context"""
+        print("Generating clarifying questions...")
+        if trace_id:
+            with trace("Clarification", trace_id=trace_id):
+                result = await Runner.run(
+                    clarifier_agent,
+                    f"Research query: {query}",
+                )
+        else:
+            result = await Runner.run(
+                clarifier_agent,
+                f"Research query: {query}",
+            )
+        return result.final_output_as(ClarifyingQuestions)
+    
+    def refine_query(self, original_query: str, answers: list[str] | None) -> str:
+        """Refine the query by incorporating clarification answers"""
+        if not answers or len(answers) == 0:
+            return original_query
+        
+        # Combine original query with answers
+        answers_text = "\n".join([f"- {answer}" for answer in answers if answer and answer.strip()])
+        if answers_text:
+            return f"{original_query}\n\nAdditional context from clarification:\n{answers_text}"
+        return original_query
         
 
     async def plan_searches(self, query: str) -> WebSearchPlan:
