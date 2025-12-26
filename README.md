@@ -8,7 +8,7 @@ An AI-powered research assistant built with Gradio and OpenAI Agents that perfor
 - **Intelligent Search Planning**: Automatically generates a strategic search plan (5 searches) based on your research query
 - **Parallel Web Search**: Performs multiple web searches concurrently for faster results
 - **Comprehensive Report Generation**: Creates detailed, well-structured reports (5-10 pages, 1000+ words) in markdown format
-- **Email Delivery**: Automatically sends formatted HTML reports via SendGrid
+- **Optional Email Delivery**: Optionally sends formatted HTML reports via SendGrid to user-provided email addresses
 - **Real-time Progress Updates**: Streams status updates as the research progresses
 - **OpenAI Tracing**: Provides trace links for debugging and monitoring agent behavior
 
@@ -22,7 +22,7 @@ The Research Helper uses a four-stage agent pipeline:
    - Detailed analysis (5-10 pages, 1000+ words)
    - Short summary
    - Follow-up research questions
-4. **Email Agent**: Formats the report as HTML and sends it via SendGrid
+4. **Email Agent** (optional): Formats the report as HTML and sends it via SendGrid to the user-provided email address
 
 All agents use GPT-4o-mini and are orchestrated by the `ResearchManager` class, which handles the async workflow and progress streaming.
 
@@ -32,8 +32,8 @@ All agents use GPT-4o-mini and are orchestrated by the `ResearchManager` class, 
 
 - Python 3.8 or higher
 - OpenAI API key
-- SendGrid API key (for email delivery)
-- Email addresses for sender and recipient
+- SendGrid API key (for email delivery - optional)
+- Email address for sender enabled via SendGrid
 
 ### Installation
 
@@ -66,7 +66,6 @@ All agents use GPT-4o-mini and are orchestrated by the `ResearchManager` class, 
    OPENAI_API_KEY=your_openai_api_key_here
    SENDGRID_API_KEY=your_sendgrid_api_key_here
    EMAIL_FROM=your_sender_email@example.com
-   EMAIL_TO=your_recipient_email@example.com
    ```
 
 ### Running the App
@@ -85,14 +84,24 @@ The app will be available at `http://127.0.0.1:7860`
 ## Usage
 
 1. Enter your research query in the text box (e.g., "Latest developments in quantum computing")
-2. Click "Run" or press Enter
-3. Watch the progress updates as the system:
+2. (Optional) Check "Send report via email" if you want to receive the report via email
+   - If checked, you must provide your email address in the field that appears
+   - The "Run" button will be disabled until you provide an email address when the checkbox is checked
+3. Click "Run" or press Enter
+4. Watch the progress updates as the system:
    - Plans searches
    - Performs web searches
    - Writes the report
-   - Sends the email
-4. View the final report in the interface
-5. Check your email inbox for the formatted HTML report
+   - (If email requested) Sends the email to your provided address
+5. View the final report in the interface
+6. (If email was requested) Check your email inbox for the formatted HTML report
+
+### Email Delivery
+
+- Email delivery is **optional** - you can view reports directly in the interface without email
+- If you check "Send report via email", you must provide a valid email address
+- The email will be sent to the address you provide (not to a default address)
+- Reports are sent as formatted HTML emails via SendGrid
 
 ## Project Structure
 
@@ -136,7 +145,8 @@ research-helper/
 ### Email Agent
 - **Model**: GPT-4o-mini
 - **Tools**: `send_email` function tool
-- **Purpose**: Converts markdown reports to HTML and sends via SendGrid
+- **Purpose**: Converts markdown reports to HTML and sends via SendGrid to user-provided email addresses
+- **Behavior**: Only runs when the user opts in via the "Send report via email" checkbox and provides an email address
 
 ## Technologies
 
@@ -161,4 +171,7 @@ You can customize the research behavior by modifying:
 - Failed searches are gracefully handled (return `None` and continue)
 - All agent interactions are traced via OpenAI's tracing system
 - Reports are generated in markdown format and converted to HTML for email
+- Email delivery is optional - users can view reports in the interface without providing an email
+- When email is requested, the user must provide their email address
+- The "Run" button is automatically disabled if email is requested but no email address is provided
 
