@@ -7,10 +7,10 @@ An AI-powered research assistant built with Gradio and OpenAI Agents that perfor
 - **Multi-Agent Research Pipeline**: Orchestrates specialized AI agents for clarification, planning, searching, writing, and email delivery
 - **Query Clarification** (optional): Generates 3 clarifying questions to refine and focus research queries before starting
 - **Intelligent Search Planning**: Automatically generates a strategic search plan (5 searches) based on your research query
-- **Parallel Web Search**: Performs multiple web searches concurrently for faster results
+- **Web Search**: Performs multiple web searches sequentially and summarizes results
 - **Comprehensive Report Generation**: Creates detailed, well-structured reports (5-10 pages, 1000+ words) in markdown format
 - **Optional Email Delivery**: Optionally sends formatted HTML reports via SendGrid to user-provided email addresses
-- **Real-time Progress Updates**: Streams status updates as the research progresses
+- **Progress Tracking**: Provides initial status message and trace link for monitoring research progress
 - **Unified OpenAI Tracing**: All agent interactions (including clarification) are traced under a single trace ID for easier log management
 
 ## How It Works
@@ -20,11 +20,11 @@ The Research Helper uses an **autonomous research manager agent** that orchestra
 0. **Clarifier Agent** (optional): Generates 3 clarifying questions to better understand and refine your research query. You can choose to answer these questions or skip directly to research.
 1. **Research Manager Agent** (autonomous): Makes autonomous decisions about the research process:
    - Uses the **Planning Agent** to create a strategic search plan with 5 targeted search terms
-   - Uses the **Search Agent** to perform web searches and summarize results (2-3 paragraphs, <300 words each)
+   - Uses the **Search Agent** to perform web searches sequentially and summarize results (2-3 paragraphs, <300 words each)
    - Uses the **Writer Agent** to synthesize search results into comprehensive reports (5-10 pages, 1000+ words)
    - Uses the **Evaluator Agent** to assess report quality and completeness
    - Uses the **Optimizer Agent** to refine queries when needed
-   - Iterates autonomously: performs additional searches, refines queries, and re-evaluates until quality threshold (0.8) is met
+   - Iterates autonomously: performs additional searches, refines queries, and re-evaluates until quality threshold (0.8) is met (typically 2-3 iterations max)
    - Hands off to the **Email Agent** when email is requested
 2. **Email Agent** (optional): Formats the report as HTML and sends it via SendGrid to the user-provided email address
 
@@ -94,12 +94,15 @@ The app will be available at `http://127.0.0.1:7860`
 3. (Optional) Check "Send report via email" if you want to receive the report via email
    - If checked, you must provide your email address in the field that appears
    - The "Run Research" button will be disabled until you provide a valid email address when the checkbox is checked
-4. Watch the progress updates as the autonomous research manager agent:
-   - Plans searches
-   - Performs web searches
-   - Writes the report
-   - Evaluates quality and iterates if needed
-   - (If email requested) Hands off to email agent to send the email to your provided address
+4. Wait for the research to complete (this may take several minutes). You'll see:
+   - An initial status message: "Starting research... This may take a few minutes."
+   - A trace link to monitor progress in OpenAI's tracing system
+   - The autonomous research manager agent will:
+     - Plan searches
+     - Perform web searches sequentially
+     - Write the report
+     - Evaluate quality and iterate if needed (typically 2-3 iterations max)
+     - (If email requested) Hand off to email agent to send the email to your provided address
 5. View the final report in the interface
 6. (If email was requested) Check your email inbox for the formatted HTML report
 
@@ -117,6 +120,7 @@ The app will be available at `http://127.0.0.1:7860`
 - If you check "Send report via email", you must provide a valid email address
 - The email will be sent to the address you provide (not to a default address)
 - Reports are sent as formatted HTML emails via SendGrid
+- Email sending relies on agent instructions to prevent duplicate sends
 
 ## Project Structure
 
@@ -176,7 +180,8 @@ research-helper/
   - When to refine queries based on evaluation feedback
   - When research quality meets the threshold (0.8)
   - When to hand off to the email agent
-- **Behavior**: Fully autonomous - iterates until quality is satisfactory, then returns the report or hands off to email
+- **Behavior**: Fully autonomous - iterates until quality is satisfactory (typically 2-3 iterations max), then returns the report or hands off to email
+- **Limitations**: Subject to OpenAI Agents framework's default max_turns limit (typically 10 turns). Complex queries requiring many iterations may hit this limit
 
 ### Evaluator Agent
 - **Model**: GPT-4o-mini
@@ -191,7 +196,7 @@ research-helper/
 - **Model**: GPT-4o-mini
 - **Tools**: `send_email` function tool
 - **Purpose**: Converts markdown reports to HTML and sends via SendGrid to user-provided email addresses
-- **Behavior**: Only runs when the user opts in via the "Send report via email" checkbox and provides an email address. Handled via agent handoff from the Research Manager Agent.
+- **Behavior**: Only runs when the user opts in via the "Send report via email" checkbox and provides an email address. Handled via agent handoff from the Research Manager Agent. Relies on agent instructions to call the send_email tool only once per research session.
 
 ## Technologies
 
@@ -216,7 +221,10 @@ You can customize the research behavior by modifying:
 
 - The system uses an **autonomous research manager agent** that makes decisions about the research process
 - The research manager agent uses `.as_tool()` to convert sub-agents into tools, enabling hierarchical agent architecture
-- The research manager agent autonomously iterates: evaluates reports, performs additional searches when needed, refines queries, and continues until quality threshold (0.8) is met
+- The research manager agent autonomously iterates: evaluates reports, performs additional searches when needed, refines queries, and continues until quality threshold (0.8) is met (typically 2-3 iterations max)
+- **Iteration Limits**: The agent is instructed to limit iterations to 2-3 cycles. However, the system is subject to OpenAI Agents framework's default max_turns limit (typically 10 turns). Complex queries requiring many tool calls may hit this limit
+- **Search Execution**: Web searches are performed sequentially (one at a time), not in parallel
+- **Progress Updates**: The UI provides an initial status message and trace link. Real-time streaming of intermediate steps is not currently implemented - you can monitor progress via the OpenAI trace link
 - All agent interactions are traced via OpenAI's tracing system under a unified trace ID
 - When clarification is used, the clarifier agent's trace is nested within the main Research trace for easier log management
 - Reports are generated in markdown format and converted to HTML for email
@@ -226,4 +234,5 @@ You can customize the research behavior by modifying:
 - When email is requested, the user must provide their email address
 - The "Run Research" button is automatically disabled if email is requested but no valid email address is provided
 - Email sending is handled via agent handoff - the research manager agent hands off to the email agent when research is complete
+- Email duplicate prevention relies on agent instructions (the email agent is instructed to call send_email only once), not code-level tracking
 
