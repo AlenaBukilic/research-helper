@@ -1,6 +1,6 @@
 # Research Helper
 
-An AI-powered research assistant built with Gradio and OpenAI Agents that performs deep research on any topic. The system uses a multi-agent architecture to plan searches, gather information, synthesize comprehensive reports, and deliver them via email.
+An AI-powered research assistant built with Gradio and OpenAI Agents that performs deep research on any topic. The system uses an autonomous multi-agent architecture where a research manager agent orchestrates specialized agents to plan searches, gather information, synthesize comprehensive reports, evaluate quality, and deliver them via email.
 
 ## Features
 
@@ -15,18 +15,20 @@ An AI-powered research assistant built with Gradio and OpenAI Agents that perfor
 
 ## How It Works
 
-The Research Helper uses a multi-stage agent pipeline with an optional clarification step:
+The Research Helper uses an **autonomous research manager agent** that orchestrates a multi-stage pipeline with an optional clarification step:
 
 0. **Clarifier Agent** (optional): Generates 3 clarifying questions to better understand and refine your research query. You can choose to answer these questions or skip directly to research.
-1. **Planning Agent**: Analyzes your (refined) query and creates a strategic search plan with 5 targeted search terms and their reasoning
-2. **Search Agent**: Performs web searches in parallel, summarizing results concisely (2-3 paragraphs, <300 words each)
-3. **Writer Agent**: Synthesizes all search results into a comprehensive, well-structured markdown report with:
-   - Detailed analysis (5-10 pages, 1000+ words)
-   - Short summary
-   - Follow-up research questions
-4. **Email Agent** (optional): Formats the report as HTML and sends it via SendGrid to the user-provided email address
+1. **Research Manager Agent** (autonomous): Makes autonomous decisions about the research process:
+   - Uses the **Planning Agent** to create a strategic search plan with 5 targeted search terms
+   - Uses the **Search Agent** to perform web searches and summarize results (2-3 paragraphs, <300 words each)
+   - Uses the **Writer Agent** to synthesize search results into comprehensive reports (5-10 pages, 1000+ words)
+   - Uses the **Evaluator Agent** to assess report quality and completeness
+   - Uses the **Optimizer Agent** to refine queries when needed
+   - Iterates autonomously: performs additional searches, refines queries, and re-evaluates until quality threshold (0.8) is met
+   - Hands off to the **Email Agent** when email is requested
+2. **Email Agent** (optional): Formats the report as HTML and sends it via SendGrid to the user-provided email address
 
-All agents use GPT-4o-mini and are orchestrated by the `ResearchManager` class, which handles the async workflow and progress streaming. When clarification is used, all agent interactions (including clarification) are traced under a single trace ID for unified log management.
+All agents use GPT-4o-mini and are orchestrated autonomously by the Research Manager Agent, which makes decisions about when to perform additional searches, refine queries, and when research is complete. When clarification is used, all agent interactions (including clarification) are traced under a single trace ID for unified log management.
 
 ## Setup
 
@@ -92,11 +94,12 @@ The app will be available at `http://127.0.0.1:7860`
 3. (Optional) Check "Send report via email" if you want to receive the report via email
    - If checked, you must provide your email address in the field that appears
    - The "Run Research" button will be disabled until you provide a valid email address when the checkbox is checked
-4. Watch the progress updates as the system:
+4. Watch the progress updates as the autonomous research manager agent:
    - Plans searches
    - Performs web searches
    - Writes the report
-   - (If email requested) Sends the email to your provided address
+   - Evaluates quality and iterates if needed
+   - (If email requested) Hands off to email agent to send the email to your provided address
 5. View the final report in the interface
 6. (If email was requested) Check your email inbox for the formatted HTML report
 
@@ -125,12 +128,14 @@ research-helper/
 ├── env.example                 # Example environment variables
 ├── research_agents/
 │   ├── __init__.py            # Package initialization
-│   ├── manager.py             # ResearchManager orchestrates the pipeline
-│   ├── clarifier.py           # Clarifier agent (generates clarifying questions)
-│   ├── planner.py             # Planning agent (creates search strategy)
-│   ├── search.py              # Search agent (performs web searches)
-│   ├── writer.py              # Writer agent (synthesizes reports)
-│   └── email.py               # Email agent (sends reports)
+│   ├── research_manager.py   # Autonomous research manager agent
+│   ├── clarifier.py          # Clarifier agent (generates clarifying questions)
+│   ├── planner.py            # Planning agent (creates search strategy)
+│   ├── search.py             # Search agent (performs web searches)
+│   ├── writer.py             # Writer agent (synthesizes reports)
+│   ├── evaluator.py          # Evaluator agent (assesses report quality)
+│   ├── optimizer.py          # Optimizer agent (refines queries)
+│   └── email.py              # Email agent (sends reports)
 └── README.md                   # This file
 ```
 
@@ -162,11 +167,31 @@ research-helper/
   - `follow_up_questions`: Suggested topics for further research
 - **Purpose**: Synthesizes search results into comprehensive reports
 
+### Research Manager Agent
+- **Model**: GPT-4o-mini
+- **Tools**: Planner, Search, Writer, Evaluator, and Optimizer agents (via `.as_tool()`)
+- **Handoffs**: Email agent
+- **Purpose**: Autonomous agent that orchestrates the entire research process, making decisions about:
+  - When to perform additional searches
+  - When to refine queries based on evaluation feedback
+  - When research quality meets the threshold (0.8)
+  - When to hand off to the email agent
+- **Behavior**: Fully autonomous - iterates until quality is satisfactory, then returns the report or hands off to email
+
+### Evaluator Agent
+- **Model**: GPT-4o-mini
+- **Output**: `EvaluationResult` with quality score, completeness check, missing aspects, and suggestions
+- **Purpose**: Assesses report quality and completeness, identifies gaps, and suggests improvements
+
+### Optimizer Agent
+- **Model**: GPT-4o-mini
+- **Purpose**: Refines research queries based on evaluation feedback to improve search results
+
 ### Email Agent
 - **Model**: GPT-4o-mini
 - **Tools**: `send_email` function tool
 - **Purpose**: Converts markdown reports to HTML and sends via SendGrid to user-provided email addresses
-- **Behavior**: Only runs when the user opts in via the "Send report via email" checkbox and provides an email address
+- **Behavior**: Only runs when the user opts in via the "Send report via email" checkbox and provides an email address. Handled via agent handoff from the Research Manager Agent.
 
 ## Technologies
 
@@ -189,8 +214,9 @@ You can customize the research behavior by modifying:
 
 ## Notes
 
-- The system performs searches in parallel for efficiency
-- Failed searches are gracefully handled (return `None` and continue)
+- The system uses an **autonomous research manager agent** that makes decisions about the research process
+- The research manager agent uses `.as_tool()` to convert sub-agents into tools, enabling hierarchical agent architecture
+- The research manager agent autonomously iterates: evaluates reports, performs additional searches when needed, refines queries, and continues until quality threshold (0.8) is met
 - All agent interactions are traced via OpenAI's tracing system under a unified trace ID
 - When clarification is used, the clarifier agent's trace is nested within the main Research trace for easier log management
 - Reports are generated in markdown format and converted to HTML for email
@@ -199,4 +225,5 @@ You can customize the research behavior by modifying:
 - Email delivery is optional - users can view reports in the interface without providing an email
 - When email is requested, the user must provide their email address
 - The "Run Research" button is automatically disabled if email is requested but no valid email address is provided
+- Email sending is handled via agent handoff - the research manager agent hands off to the email agent when research is complete
 
