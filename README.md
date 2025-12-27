@@ -6,7 +6,7 @@ sdk_version: 5.5.0
 ---
 # Research Helper
 
-![Research Interface](./images/screenshot.png)
+![Research Interface](https://github.com/user-attachments/assets/57f51fbd-69b8-4d77-b8fb-f427d815103b)
 
 An AI-powered research assistant built with Gradio and OpenAI Agents that performs deep research on any topic. The system uses an autonomous multi-agent architecture where a research manager agent orchestrates specialized agents to plan searches, gather information, synthesize comprehensive reports, evaluate quality, and deliver them via email.
 
