@@ -13,7 +13,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # This is the only "LFS" line you need in the YAML
           lfs: true 
 
       - name: Push to Hugging Face
